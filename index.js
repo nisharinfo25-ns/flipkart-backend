@@ -1,16 +1,21 @@
 const express = require('express');
 const axios = require('axios');
-const fs = require('fs');
-const app = express();
-app.use(express.json());
-
-// Flipkart credentials
-const CLIENT_ID = 'YOUR_FLIPKART_APP_ID';
-const CLIENT_SECRET = 'YOUR_FLIPKART_SECRET';
-const REDIRECT_URI = 'https://flipkart-backend-delta.vercel.app/'; // replace with your free domain
-const TOKEN_FILE = 'token.txt'; // file to store access token
 const cors = require('cors');
+const app = express();
+
+// Middleware
+app.use(express.json());
 app.use(cors());  // allow all origins
+
+// Flipkart App Credentials
+const CLIENT_ID = 'YOUR_FLIPKART_APP_ID';       // replace with your App ID
+const CLIENT_SECRET = 'YOUR_FLIPKART_SECRET';   // replace with your Secret
+const REDIRECT_URI = 'https://flipkart-backend-delta.vercel.app/callback'; // must match your Vercel domain
+
+// Store token in memory (temporary)
+let ACCESS_TOKEN = '';
+
+// -------------------- ROUTES -------------------- //
 
 // Step 1: Login → Flipkart OAuth
 app.get('/login', (req, res) => {
@@ -18,7 +23,7 @@ app.get('/login', (req, res) => {
     res.redirect(authURL);
 });
 
-// Step 2: Callback → get access token & store in file
+// Step 2: Callback → get access token & store in memory
 app.get('/callback', async (req, res) => {
     const code = req.query.code;
     try {
@@ -29,38 +34,26 @@ app.get('/callback', async (req, res) => {
             grant_type: 'authorization_code',
             redirect_uri: REDIRECT_URI
         });
-        const accessToken = response.data.access_token;
-
-        // Store token in file
-        fs.writeFileSync(TOKEN_FILE, accessToken, 'utf8');
-
-        res.send(`Access Token stored successfully! You can now fetch orders from /orders endpoint.`);
+        ACCESS_TOKEN = response.data.access_token;
+        res.send('✅ Access Token stored in memory! You can now fetch orders from /orders');
     } catch (err) {
-        res.send('Error getting access token: ' + err);
+        res.status(500).send('❌ Error getting access token: ' + err.message);
     }
 });
 
-// Step 3: Orders endpoint → read token from file
+// Step 3: Orders endpoint → fetch Flipkart orders using stored token
 app.get('/orders', async (req, res) => {
     try {
-        const ACCESS_TOKEN = fs.readFileSync(TOKEN_FILE, 'utf8');
+        if (!ACCESS_TOKEN) return res.status(400).send('Token not set. Login first via /login');
         const orders = await axios.get('https://api.flipkart.net/sellers/orders', {
             headers: { Authorization: `Bearer ${ACCESS_TOKEN}` }
         });
-        res.json(orders.data);
+        res.status(200).json(orders.data);
     } catch (err) {
-        res.send('Error fetching orders: ' + err);
+        res.status(500).json({ error: 'Error fetching orders', details: err.message });
     }
 });
 
-// CORS for Lovable frontend
-app.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', 'https://indiabizz.lovable.app');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    next();
-});
-
-// Start server
+// -------------------- START SERVER -------------------- //
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
