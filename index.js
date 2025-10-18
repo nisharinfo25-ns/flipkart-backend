@@ -7,8 +7,10 @@ app.use(express.json());
 // Flipkart credentials
 const CLIENT_ID = 'YOUR_FLIPKART_APP_ID';
 const CLIENT_SECRET = 'YOUR_FLIPKART_SECRET';
-const REDIRECT_URI = 'https://YOUR_FREE_DOMAIN/callback'; // replace with your free domain
+const REDIRECT_URI = 'https://flipkart-backend-delta.vercel.app/'; // replace with your free domain
 const TOKEN_FILE = 'token.txt'; // file to store access token
+const cors = require('cors');
+app.use(cors());  // allow all origins
 
 // Step 1: Login → Flipkart OAuth
 app.get('/login', (req, res) => {
